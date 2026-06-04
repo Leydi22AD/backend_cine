@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: mysql-ecommerce-prod
+    restart: always
+    environment:
+      MYSQL_DATABASE: 'ecommerce_lp2_prod'
+      MYSQL_ROOT_PASSWORD: 'admin123'
+      MYSQL_PASSWORD: 'admin123'
+    volumes:
+      - mysql_data:/var/lib/mysql
+      #- ../sql/init.sql:/docker-entrypoint-initdb.d/init.sql # Ruta relativa al directorio 'docker/'
+      - ../sql:/docker-entrypoint-initdb.d/
+    ports:
+      - '3309:3306'
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-padmin123"]
+      timeout: 20s
+      retries: 10
+      start_period: 40s
+    networks:          # <--- CAMBIO: AÑADIDO ESTA SECCIÓN
+      - backend        # <--- CAMBIO: AÑADIDO ESTA LÍNEA
+
+  app:
+    build:
+      context: ..  # El contexto es el directorio raíz del proyecto (ecommerce_Dockerizado/)
+      dockerfile: docker/Dockerfile # El Dockerfile está en docker/Dockerfile dentro de ese contexto
+    container_name: product_app
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - '8084:8084'
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db/ecommerce_lp2_prod?serverTimezone=America/Lima&useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: admin123
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    restart: unless-stopped
+    networks:
+      - backend # El servicio 'app' ya estaba correctamente en esta red
+
+volumes:
+  mysql_data: # Define el volumen nombrado para persistencia de datos de MySQL
+
+networks:
+  backend:    # Define la red lógica 'backend'
+    name: ecommerce_net # Le da el nombre físico 'ecommerce_net' a la red Docker
