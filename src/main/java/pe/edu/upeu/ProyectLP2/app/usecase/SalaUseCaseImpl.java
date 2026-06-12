@@ -3,6 +3,7 @@ package pe.edu.upeu.ProyectLP2.app.usecase;
 import org.springframework.stereotype.Service;
 import pe.edu.upeu.ProyectLP2.domain.model.Asiento;
 import pe.edu.upeu.ProyectLP2.domain.model.Sala;
+import pe.edu.upeu.ProyectLP2.domain.exception.AsientoAlreadyExistsException;
 import pe.edu.upeu.ProyectLP2.domain.port.in.SalaUseCase;
 import pe.edu.upeu.ProyectLP2.domain.port.on.AsientoRepositoryPort;
 import pe.edu.upeu.ProyectLP2.domain.port.on.SalaRepositoryPort;
@@ -33,16 +34,24 @@ public class SalaUseCaseImpl implements SalaUseCase {
     }
     
     private void generarAsientos(Sala sala) {
-        // Letras para las filas: A, B, C, D...
-        for (int fila = 0; fila < sala.getFilas(); fila++) {
-            for (int columna = 1; columna <= sala.getColumnas(); columna++) {
+        // Evitar NPE y valores inválidos
+        int filas = sala.getFilas() == null ? 0 : sala.getFilas();
+        int columnas = sala.getColumnas() == null ? 0 : sala.getColumnas();
+
+        for (int fila = 0; fila < filas; fila++) {
+            for (int columna = 1; columna <= columnas; columna++) {
                 Asiento asiento = new Asiento();
                 asiento.setFila(fila + 1); // 1, 2, 3...
                 asiento.setColumna(columna); // 1, 2, 3...
                 asiento.setEstado("LIBRE");
                 asiento.setSala(sala);
-                
-                asientoRepositoryPort.save(asiento);
+
+                try {
+                    asientoRepositoryPort.save(asiento);
+                } catch (AsientoAlreadyExistsException e) {
+                    // Si por alguna razón ya existe, continuar con el siguiente asiento
+                    // (evita que una excepción interrumpa la generación completa)
+                }
             }
         }
     }

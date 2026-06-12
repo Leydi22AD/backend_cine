@@ -3,6 +3,7 @@ package pe.edu.upeu.ProyectLP2.infraestructure.adapter.controller;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import pe.edu.upeu.ProyectLP2.domain.exception.FuncionAlreadyExistsException;
 import pe.edu.upeu.ProyectLP2.domain.model.Funcion;
 import pe.edu.upeu.ProyectLP2.domain.model.Pelicula;
 import pe.edu.upeu.ProyectLP2.domain.model.Sala;
@@ -13,6 +14,7 @@ import pe.edu.upeu.ProyectLP2.infraestructure.adapter.controller.dto.FuncionDto;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -34,29 +36,46 @@ public class FuncionController {
 
     // Crear función (soporta POST en '/api/v1/funciones' y '/api/v1/funciones/crear')
     @PostMapping(value = {"", "/crear"})
-    public ResponseEntity<FuncionDto.FuncionResponse> crearFuncion(@RequestBody FuncionDto.FuncionRequest request) {
-        Pelicula pelicula = peliculaUseCase.obtenerPeliculaPorId(request.peliculaId())
-                .orElseThrow(() -> new RuntimeException("Película no encontrada con id: " + request.peliculaId()));
+    public ResponseEntity<?> crearFuncion(
+            @RequestBody FuncionDto.FuncionRequest request) {
 
-        Sala sala = salaUseCase.obtenerSalaPorId(request.salaId())
-                .orElseThrow(() -> new RuntimeException("Sala no encontrada con id: " + request.salaId()));
+        try {
 
-        // Combinar fecha y hora en LocalDateTime
-        LocalDateTime fechaHora = combinarFechaHora(request.fecha(), request.horario());
-        
-        // Validar que la fecha no sea anterior a hoy
-        if (fechaHora.isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("La fecha de la función no puede ser anterior a la fecha actual");
+            // Validar campos obligatorios
+            if (request.peliculaId() == null || request.salaId() == null || request.fecha() == null || request.horario() == null || request.precio() == null || request.precio().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException("Campos de función obligatorios o precio inválido");
+            }
+
+            Pelicula pelicula = peliculaUseCase.obtenerPeliculaPorId(request.peliculaId())
+                    .orElseThrow(() -> new RuntimeException("Película no encontrada"));
+
+            Sala sala = salaUseCase.obtenerSalaPorId(request.salaId())
+                    .orElseThrow(() -> new RuntimeException("Sala no encontrada"));
+
+            LocalDateTime fechaHora = combinarFechaHora(
+                    request.fecha(),
+                    request.horario()
+            );
+
+            Funcion funcion = new Funcion();
+            funcion.setFecha(fechaHora);
+            funcion.setPrecio(request.precio());
+            funcion.setPelicula(pelicula);
+            funcion.setSala(sala);
+
+            Funcion creada = funcionUseCase.crearFuncion(funcion);
+
+            return ResponseEntity
+                    .status(HttpStatus.CREATED)
+                    .body(mapToFuncionResponse(creada));
+
+        } catch (FuncionAlreadyExistsException e) {
+
+            return ResponseEntity
+                    .status(HttpStatus.CONFLICT)
+                    .body(e.getMessage());
+
         }
-
-        Funcion funcion = new Funcion();
-        funcion.setFecha(fechaHora);
-        funcion.setPrecio(request.precio());
-        funcion.setPelicula(pelicula);
-        funcion.setSala(sala);
-
-        Funcion creada = funcionUseCase.crearFuncion(funcion);
-        return new ResponseEntity<>(mapToFuncionResponse(creada), HttpStatus.CREATED);
     }
 
     // Obtener función por ID

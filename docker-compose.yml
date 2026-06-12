@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: mysql-cine
+    restart: always
+    environment:
+      MYSQL_DATABASE: cine
+      MYSQL_ROOT_PASSWORD: admin
+    ports:
+      - "3309:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - cine-network
+
+  app:
+    build: .
+    container_name: app-cine
+    restart: always
+    ports:
+      - "8082:8082"
+    environment:
+      # Apunta al nombre del servicio "db" dentro de la red de Docker, usando el puerto interno 3306
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/cine?allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: admin
+    depends_on:
+      - db
+    networks:
+      - cine-network
+
+volumes:
+  mysql_data:
+
+networks:
+  cine-network:
+    driver: bridge
