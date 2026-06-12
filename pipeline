@@ -51,17 +51,16 @@ pipeline {
     }
 
     post {
-        always {
-            junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
-            jacoco execPattern: 'target/*.exec', classPattern: 'target/classes', sourcePattern: 'src/main/java'
+            always {
+                echo '🏁 === FINALIZACIÓN DEL PIPELINE ==='
+                junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
+                jacoco execPattern: 'target/*.exec', classPattern: 'target/classes', sourcePattern: 'src/main/java'
+            }
+            success {
+                echo '🎉 Pipeline completado con éxito.'
+            }
+            failure {
+                // 💡 Eliminamos la línea 'mail' que estaba intentando conectar a un servidor inexistente
+                echo '💥 PIPELINE FALLÓ: Revisa los logs de los stages anteriores para ver el error real.'
+            }
         }
-        success {
-            echo '🎉 Pipeline finalizado con éxito.'
-        }
-        failure {
-            // 🚨 ESTO ES LO QUE TE FALTA PARA VER EL ERROR
-            echo '💥 PIPELINE FALLÓ: Revisa los logs de los stages anteriores.'
-            mail to: 'tu-email@ejemplo.com', subject: "Fallo en Pipeline Cine", body: "El pipeline falló. Revisa Jenkins."
-        }
-    }
-}
