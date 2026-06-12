@@ -75,6 +75,6 @@ pipeline {
             jacoco execPattern: 'target/*.exec', classPattern: 'target/classes', sourcePattern: 'src/main/java'
         }
         success { echo '🎉 Pipeline completado!' }
-        failure { echo '💥 Pipeline falló' }
+
     }
 }
