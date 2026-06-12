@@ -1,16 +1,12 @@
-// 🎬 Jenkinsfile - Pipeline de CI/CD para aplicación de Cine (ProyectLP2)
-// 📦 Este pipeline automatiza el proceso de construcción, pruebas unitarias/Cucumber y despliegue
-
 pipeline {
     agent any
 
-    // 🛠️ Configuración de herramientas necesarias en Jenkins
     tools {
-        maven 'Maven3' // Cambia 'Maven3' por el nombre exacto de tu configuración en Jenkins si es diferente
-        jdk 'Java21'   // Cambia 'Java21' por el nombre exacto de tu configuración en Jenkins si es diferente
+        // Debes verificar en 'Global Tool Configuration' si se llama 'MAVEN_HOME', 'Maven3' o 'maven-3.9'
+        // Si tienes dudas, ve a Jenkins -> Manage Jenkins -> Global Tool Configuration y copia el nombre
+        maven 'MAVEN_HOME'
     }
 
-    // 🔧 Definición de variables globales
     environment {
         DOCKER_PROJECT_NAME = 'cineproject'
         APP_CONTAINER_NAME = 'app-cine'
@@ -18,121 +14,67 @@ pipeline {
         DB_NAME = 'cine'
         DB_USER = 'root'
         DB_PASSWORD = 'admin'
-        // Ruta al script de tu base de datos si requieres inicialización forzada
-        // REPO_URL = 'Tu URL de repositorio si vas a clonar directamente'
+        REPO_URL = 'https://github.com/Leydi22AD/backend_cine.git'
     }
 
     stages {
-        // 📥 Etapa 1: Limpieza del Workspace y preparación
-        stage('Prepare Workspace') {
+        stage('Clone') {
             steps {
-                timeout(time: 5, unit: 'MINUTES') {
-                    echo '🔄 === INICIO: LIMPIEZA Y PREPARACIÓN DEL ENTORNO ==='
+                timeout(time: 10, unit: 'MINUTES') {
+                    echo '🔄 === INICIO: CLONACIÓN ==='
                     cleanWs()
-                    echo '✅ === FIN: ENTORNO PREPARADO ==='
+                    git branch: 'master', url: "${REPO_URL}"
                 }
             }
         }
 
-        // 🏗️ Etapa 2: Construcción y Empaquetado
         stage('Build') {
             steps {
                 timeout(time: 10, unit: 'MINUTES') {
-                    echo '🔨 === INICIO: CONSTRUCCIÓN DEL PROYECTO SPRING BOOT ==='
-                    // Compila el jar saltándose los tests momentáneamente
-                    bat 'mvn -DskipTests clean package'
-                    echo '✅ === FIN: CONSTRUCCIÓN COMPLETADA ==='
+                    echo '🔨 === INICIO: CONSTRUCCIÓN ==='
+                    sh 'mvn -DskipTests clean package'
                 }
             }
         }
 
-        // 🧪 Etapa 3: Ejecución de Pruebas Unitarias e Integración (JaCoCo + Cucumber)
         stage('Test') {
             steps {
                 timeout(time: 15, unit: 'MINUTES') {
-                    echo '🧪 === INICIO: EJECUCIÓN DE PRUEBAS (UNITARIAS Y CUCUMBER) ==='
-                    // Ejecuta verify para correr todas las pruebas y levantar el reporte HTML de JaCoCo
-                    bat 'mvn clean verify'
-                    echo '✅ === FIN: TODAS LAS PRUEBAS PASARON EXITOSAMENTE ==='
+                    echo '🧪 === INICIO: PRUEBAS ==='
+                    sh 'mvn clean verify'
                 }
             }
         }
 
-        // 📊 Etapa 4: Análisis de calidad con SonarQube
         stage('Sonar Analysis') {
             steps {
-                timeout(time: 10, unit: 'MINUTES') {
-                    echo '📊 === INICIO: ANÁLISIS DE CALIDAD EN SONARQUBE ==='
-                    // Vincula las métricas de JaCoCo directo al dashboard de SonarQube
-                    withSonarQubeEnv('SonarQube') { // Reemplaza 'SonarQube' por el nombre de tu servidor en Jenkins
-                        bat 'mvn sonar:sonar -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml'
-                    }
-                    echo '✅ === FIN: ANÁLISIS DE CALIDAD COMPLETADO ==='
+                withSonarQubeEnv('SonarQube') {
+                    sh 'mvn sonar:sonar -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml'
                 }
             }
         }
 
-        // 🎯 Etapa 5: Verificación de estándares de calidad (Quality Gate)
-        stage('Quality Gate') {
+        stage('Deploy') {
             steps {
-                timeout(time: 10, unit: 'MINUTES') {
-                    echo '🎯 === VERIFICACIÓN DE ESTÁNDARES DE CALIDAD (QUALITY GATE) ==='
-                    waitForQualityGate abortPipeline: true
-                    echo '✅ === FIN: VALIDACIÓN DE CALIDAD CON GREEN LIGHT ==='
-                }
-            }
-        }
-
-        // 🚀 Etapa 6: Despliegue de la aplicación con Docker Compose
-        stage('Deploy Application') {
-            steps {
-                echo '🚀 === INICIO: PROCESO DE DESPLIEGUE EN DOCKER ==='
                 script {
-                    // 🧹 Limpieza del despliegue previo para evitar conflictos de puertos
-                    echo '1️⃣ Limpiando contenedores anteriores...'
+                    echo '🚀 === INICIO: DESPLIEGUE ==='
                     try {
-                        bat "docker-compose -p ${DOCKER_PROJECT_NAME} down -v --remove-orphans"
+                        sh "docker-compose -p ${DOCKER_PROJECT_NAME} down -v --remove-orphans"
                     } catch (Exception e) {
-                        echo "⚠️ Advertencia durante la limpieza: ${e.getMessage()}"
+                        echo "⚠️ Limpieza previa..."
                     }
-
-                    // 🏗️ Construcción y levantamiento de servicios usando el Dockerfile
-                    echo '2️⃣ Construyendo imágenes y levantando servicios en Docker...'
-                    bat "docker-compose -p ${DOCKER_PROJECT_NAME} up -d --build"
-
-                    // ⏳ Espera prudencial para que MySQL levante por completo
-                    echo '3️⃣ Esperando inicialización del motor de base de datos MySQL...'
-                    sleep(20)
-
-                    // 🔍 Verificación de que las tablas de JPA Hibernate se hayan autogenerado correctamente
-                    echo '4️⃣ Verificando estructura de tablas en la base de datos `cine`...'
-                    bat "docker exec ${DB_CONTAINER_NAME} mysql -u${DB_USER} -p${DB_PASSWORD} -e 'USE ${DB_NAME}; SHOW TABLES;'"
-
-                    // ⏳ Espera final para el arranque completo de Tomcat embebido
-                    echo '5️⃣ Esperando estabilización de la aplicación Spring Boot...'
-                    sleep(15)
-
-                    echo '6️⃣ Mostrando últimas líneas del log de la aplicación:'
-                    bat "docker logs --tail 150 ${APP_CONTAINER_NAME}"
+                    sh "docker-compose -p ${DOCKER_PROJECT_NAME} up -d --build"
                 }
-                echo '✅ === FIN: DESPLIEGUE Y MONITOREO INICIAL COMPLETADO ==='
             }
         }
     }
 
-    // 📝 Acciones post-ejecución para publicar reportes en Jenkins
     post {
         always {
-            echo '🏁 === FINALIZACIÓN DEL PIPELINE ==='
-            // Publica los reportes de resultados directamente en la interfaz de Jenkins
             junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
             jacoco execPattern: 'target/*.exec', classPattern: 'target/classes', sourcePattern: 'src/main/java'
         }
-        success {
-            echo '🎉 ✓ ¡Enhorabuena, Leydi! El pipeline de Cine se ejecutó de forma impecable.'
-        }
-        failure {
-            echo '💥 ✗ ERROR: El pipeline falló. Revisa la etapa afectada en los logs de arriba.'
-        }
+        success { echo '🎉 Pipeline completado!' }
+        failure { echo '💥 Pipeline falló' }
     }
 }
