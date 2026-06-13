@@ -44,8 +44,10 @@ pipeline {
                           sh "docker-compose -p ${DOCKER_PROJECT_NAME} up -d --build"
                       }
                   }
+      }
+
               }
-    post {
+                  post {
         always {
             junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
             // Quitamos el jacoco por ahora hasta que instales el plugin
