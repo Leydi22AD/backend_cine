@@ -29,24 +29,17 @@ pipeline {
             }
         }
 
-      stage('Deploy') {
-                  steps {
-                      echo '🚀 === LIMPIANDO Y DESPLEGANDO... ==='
-                      script {
-                          // 1. Forzamos la eliminación de todo lo relacionado con este proyecto
-                          // El '|| true' hace que no falle si el contenedor no existe
-                          sh "docker-compose -p ${DOCKER_PROJECT_NAME} down -v --remove-orphans || true"
-
-                          // 2. Por si acaso queda un "fantasma" con el nombre específico, lo eliminamos a la fuerza
-                          sh "docker rm -f mysql-cine app-cine || true"
-
-                          // 3. Levantamos todo de nuevo
-                          sh "docker-compose -p ${DOCKER_PROJECT_NAME} up -d --build"
-                      }
-                  }
-      }
-
-              }
+                stage('Deploy') {
+                            steps {
+                                echo '🚀 === LIMPIANDO Y DESPLEGANDO... ==='
+                                script {
+                                    // Accedemos a la variable a través de 'env.'
+                                    sh "docker-compose -p ${env.DOCKER_PROJECT_NAME} down -v --remove-orphans || true"
+                                    sh "docker rm -f mysql-cine app-cine || true"
+                                    sh "docker-compose -p ${env.DOCKER_PROJECT_NAME} up -d --build"
+                                }
+                            }
+                }
                   post {
         always {
             junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
