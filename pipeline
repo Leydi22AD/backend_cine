@@ -1,66 +1,96 @@
 pipeline {
     agent any
 
-    // 💡 He ajustado el bloque tools para que sea más tolerante
     tools {
         maven 'MAVEN_HOME'
     }
 
     environment {
         DOCKER_PROJECT_NAME = 'cineproject'
-        // ... (tus otras variables)
+        APP_CONTAINER_NAME = 'app-cine'
+        DB_CONTAINER_NAME = 'mysql-cine'
+        DB_NAME = 'cine'
+        DB_USER = 'root'
+        DB_PASSWORD = 'admin'
+        REPO_URL = 'https://github.com/Leydi22AD/backend_cine.git'
     }
 
     stages {
         stage('Clone') {
             steps {
-                echo '🔄 === CLONANDO... ==='
-                cleanWs()
-                git branch: 'master', url: 'https://github.com/Leydi22AD/backend_cine.git'
+                timeout(time: 10, unit: 'MINUTES') {
+                    echo '🔄 === INICIO: CLONACIÓN DEL REPOSITORIO ==='
+                    cleanWs()
+                    git branch: 'master', url: "${REPO_URL}"
+                    echo '✅ === FIN: CLONACIÓN COMPLETADA ==='
+                }
             }
         }
 
-        stage('Build & Test') {
+        stage('Build') {
             steps {
-                echo '🔨 === CONSTRUYENDO Y TESTEANDO... ==='
-                // Unimos Build y Test para optimizar tiempo en el contenedor
-                sh 'mvn clean verify'
+                timeout(time: 10, unit: 'MINUTES') {
+                    echo '🔨 === INICIO: CONSTRUCCIÓN DEL PROYECTO ==='
+                    sh 'mvn -DskipTests clean package'
+                    echo '✅ === FIN: CONSTRUCCIÓN COMPLETADA ==='
+                }
+            }
+        }
+
+        stage('Test') {
+            steps {
+                timeout(time: 15, unit: 'MINUTES') {
+                    echo '🧪 === INICIO: EJECUCIÓN DE PRUEBAS ==='
+                    sh 'mvn clean verify'
+                    echo '✅ === FIN: PRUEBAS COMPLETADAS ==='
+                }
             }
         }
 
         stage('Sonar Analysis') {
             steps {
-                echo '📊 === ANALIZANDO SONARQUBE ==='
-                withSonarQubeEnv('SonarQube') {
-                    sh 'mvn sonar:sonar -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml'
+                timeout(time: 10, unit: 'MINUTES') {
+                    echo '📊 === INICIO: ANÁLISIS DE CALIDAD ==='
+                    withSonarQubeEnv('SonarQube') {
+                        sh 'mvn sonar:sonar -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml'
+                    }
+                    echo '✅ === FIN: ANÁLISIS DE CALIDAD COMPLETADO ==='
                 }
             }
         }
 
-        stage('Deploy') {
+        stage('Deploy Application') {
             steps {
-                echo '🚀 === DESPLEGANDO... ==='
+                echo '🚀 === INICIO: PROCESO DE DESPLIEGUE ==='
                 script {
-                    // Verificamos si docker-compose existe antes de intentar bajar nada
-                    sh 'docker-compose -v'
+                    echo '1️⃣ Limpiando despliegue anterior...'
                     sh "docker-compose -p ${DOCKER_PROJECT_NAME} down -v --remove-orphans || true"
+
+                    echo '2️⃣ Construyendo y levantando servicios...'
                     sh "docker-compose -p ${DOCKER_PROJECT_NAME} up -d --build"
+
+                    echo '3️⃣ Esperando estabilización de servicios...'
+                    sleep(30)
+
+                    echo '4️⃣ Verificando logs de la aplicación:'
+                    sh "docker logs --tail 100 ${APP_CONTAINER_NAME}"
                 }
+                echo '✅ === FIN: DESPLIEGUE COMPLETADO ==='
             }
         }
     }
 
     post {
-            always {
-                echo '🏁 === FINALIZACIÓN DEL PIPELINE ==='
-                junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
-                jacoco execPattern: 'target/*.exec', classPattern: 'target/classes', sourcePattern: 'src/main/java'
-            }
-            success {
-                echo '🎉 Pipeline completado con éxito.'
-            }
-            failure {
-                // 💡 Eliminamos la línea 'mail' que estaba intentando conectar a un servidor inexistente
-                echo '💥 PIPELINE FALLÓ: Revisa los logs de los stages anteriores para ver el error real.'
-            }
+        always {
+            echo '🏁 === FINALIZACIÓN DEL PIPELINE ==='
+            junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
+            jacoco execPattern: 'target/*.exec', classPattern: 'target/classes', sourcePattern: 'src/main/java'
         }
+        success {
+            echo '🎉 ✓ Pipeline completado exitosamente'
+        }
+        failure {
+            echo '💥 ✗ Pipeline falló'
+        }
+    }
+}
