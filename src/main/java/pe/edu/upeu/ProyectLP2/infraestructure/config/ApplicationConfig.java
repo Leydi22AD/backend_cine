@@ -1,4 +1,4 @@
-package pe.edu.upeu.ProyectLP2.infrastructure.config;
+package pe.edu.upeu.ProyectLP2.infraestructure.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

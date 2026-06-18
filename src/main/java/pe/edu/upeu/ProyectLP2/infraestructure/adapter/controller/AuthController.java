@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import pe.edu.upeu.ProyectLP2.domain.model.Usuario;
 import pe.edu.upeu.ProyectLP2.domain.port.on.UsuarioRepositoryPort;
 import pe.edu.upeu.ProyectLP2.infraestructure.adapter.controller.dto.AuthDto;
-import pe.edu.upeu.ProyectLP2.infrastructure.security.JwtService;
+import pe.edu.upeu.ProyectLP2.infraestructure.security.JwtService;
 import pe.edu.upeu.ProyectLP2.infraestructure.entity.Rol;
 
 import java.util.Optional;

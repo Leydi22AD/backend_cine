@@ -1,4 +1,4 @@
-package pe.edu.upeu.ProyectLP2.infrastructure.security;
+package pe.edu.upeu.ProyectLP2.infraestructure.security;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
